@@ -4,23 +4,15 @@ import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
-import android.opengl.GLES11Ext;
 import android.opengl.GLES20;
-import android.opengl.GLES30;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
+import android.opengl.Matrix;
 import android.os.Bundle;
-import android.support.design.widget.FloatingActionButton;
-import android.support.design.widget.Snackbar;
+import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
-import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
-import android.view.Menu;
-import android.view.MenuItem;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -36,7 +28,7 @@ public class MainActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
+GLTools.init(this);
         glSurfaceView=new GLSurfaceView(this);
         glSurfaceView.setEGLContextClientVersion(2);
         glSurfaceView.setRenderer(new GLSurfaceViewRender(this));
@@ -78,12 +70,14 @@ public class MainActivity extends AppCompatActivity {
             loadVertex();
             initShader();
             loadTexture();
+            GLTools.init(this.context);
         }
 
         @Override
         public void onSurfaceChanged(GL10 gl, int width, int height) {
             // 设置输出屏幕大小
             gl.glViewport(0, 0, width, height);
+            GLTools.init(width,height);
             Log.i(TAG, "onSurfaceChanged");
         }
 
@@ -108,6 +102,12 @@ public class MainActivity extends AppCompatActivity {
             GLES20.glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
+
+            setMatrix(translate(GLTools.toGLX(1), 0f,0));
+            if(matrix!=null){
+                GLES20.glUniformMatrix4fv(hMatrix,1,false,matrix,0);
+            }
+
             vertex.position(0);
 // load the position
 // 3(x , y , z)
@@ -141,17 +141,21 @@ public class MainActivity extends AppCompatActivity {
 
         private void initShader() {
 
-            String vertexSource = Tools.readFromAssets("VertexShader.glsl");
+            String vertexSource = Tools.readFromAssets("VertexShaderMatrix.glsl");
             String fragmentSource = Tools.readFromAssets("FragmentShader.glsl");
             // Load the shaders and get a linked program
             int program =GLHelper.loadProgram(vertexSource, fragmentSource);
             // Get the attribute locations
             attribPosition = GLES20.glGetAttribLocation(program, "a_position");
             attribTexCoord = GLES20.glGetAttribLocation(program, "a_texCoord");
+            hMatrix=GLES20.glGetUniformLocation(program,"u_MVPMatrix");
             int uniformTexture = GLES20.glGetUniformLocation(program,"u_samplerTexture");
+
             GLES20.glUseProgram(program);
+
             GLES20.glEnableVertexAttribArray(attribPosition);
             GLES20.glEnableVertexAttribArray(attribTexCoord);
+
             // Set the sampler to texture unit 0
             GLES20.glUniform1i(uniformTexture, 0);
         }
@@ -173,7 +177,7 @@ public class MainActivity extends AppCompatActivity {
                 Bitmap bitmap;
                 try {
                     //bitmap = BitmapFactory.decodeStream(is);
-                    bitmap=BitmapFactory.decodeResource(context.getResources(),R.drawable.wavetest);
+                    bitmap=BitmapFactory.decodeResource(context.getResources(),R.drawable.testimage);
                 } finally {
 //                    try {
 //                       // is.close();
@@ -208,7 +212,20 @@ public class MainActivity extends AppCompatActivity {
             return result;
         }
 
+        private float[] matrix;
+        public void setMatrix(float[] matrix){
+            this.matrix=matrix;
+        }
 
+        public float[] translate(float x,float y,float z){
+             float[] mMatrixCurrent=     //原始矩阵
+                    {1,0,0,0,
+                            0,1,0,0,
+                            0,0,1,0,
+                            0,0,0,1};
+            Matrix.translateM(mMatrixCurrent,0,x,y,z);
+            return mMatrixCurrent;
+        }
 
         private static final  int TEXTURE_ID=0;
         private static final  int TEXTURE_WIDTH=1;
@@ -216,19 +233,22 @@ public class MainActivity extends AppCompatActivity {
 
         int attribPosition;
         int attribTexCoord;
+        int hMatrix;
         private int textureId;
         private FloatBuffer vertex;
         private ShortBuffer index;
+        //st(uv 用1-t是图像反了)反了图像会上下反着显示
         private float[] quadVertex = new float[] {
-                -0.5f, 0.5f, 0.0f, // Position 0
-                0, 1.0f, // TexCoord 0
-                -0.5f, -0.5f, 0.0f, // Position 1
-                0, 0, // TexCoord 1
-                0.5f , -0.5f, 0.0f, // Position 2
-                1.0f, 0, // TexCoord 2
-                0.5f, 0.5f, 0.0f, // Position 3
-                1.0f, 1.0f, // TexCoord 3
+                -1.0f, 1.0f, 0.0f, // Position 0
+                0, 1-1.0f, // TexCoord 0
+                -1.0f, -1.0f, 0.0f, // Position 1
+                0, 1-0f, // TexCoord 1
+                1.0f , -1.0f, 0.0f, // Position 2
+                1.0f, 1-0f, // TexCoord 2
+                1.0f, 1.0f, 0.0f, // Position 3
+                1.0f, 1-1.0f, // TexCoord 3
         };
+
         private short[] quadIndex = new short[] {
                 (short)(0), // Position 0
                 (short)(1), // Position 1
