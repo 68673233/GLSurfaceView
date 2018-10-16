@@ -12,11 +12,13 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.support.v7.app.AppCompatActivity;
 import android.util.Log;
+import android.view.MotionEvent;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
 import java.nio.ShortBuffer;
+import java.util.logging.Logger;
 
 import javax.microedition.khronos.egl.EGLConfig;
 import javax.microedition.khronos.opengles.GL10;
@@ -24,14 +26,15 @@ import javax.microedition.khronos.opengles.GL10;
 public class MainActivity extends AppCompatActivity {
     private String TAG="glsurfaceview";
     private GLSurfaceView glSurfaceView;
-
+    private GLSurfaceViewRender render;
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 GLTools.init(this);
         glSurfaceView=new GLSurfaceView(this);
         glSurfaceView.setEGLContextClientVersion(2);
-        glSurfaceView.setRenderer(new GLSurfaceViewRender(this));
+        render=new GLSurfaceViewRender(this);
+        glSurfaceView.setRenderer(render);
         glSurfaceView.setRenderMode(GLSurfaceView.RENDERMODE_CONTINUOUSLY);
 
         setContentView(glSurfaceView);
@@ -52,8 +55,40 @@ GLTools.init(this);
         glSurfaceView.onPause();
     }
 
+    private float oldx,oldy;
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+
+        switch (event.getAction() & MotionEvent.ACTION_MASK){
+            case MotionEvent.ACTION_DOWN:
+                oldx=event.getX();
+                oldy=event.getY();
+
+                break;
+            case MotionEvent.ACTION_MOVE:
+                float offsetX= (event.getX()-oldx);
+                float offsetY= (event.getY()-oldy);
+                render.setOffsetXY(offsetX,offsetY);
+                oldx=event.getX();
+                oldy=event.getY();
+                break;
+
+        }
+        return super.onTouchEvent(event);
+    }
+
     class GLSurfaceViewRender implements GLSurfaceView.Renderer {
         Context context;
+        float x=0,y=0;
+        public void setXY(float x,float y){
+            this.x=x;
+            this.y=y;
+        }
+        public void setOffsetXY(float offsetX,float offsetY){
+            this.x+=offsetX;
+            this.y+=offsetY;
+        }
+
         private GLSurfaceViewRender(Context context){
             this.context=context;
         }
@@ -103,7 +138,7 @@ GLTools.init(this);
             GLES20.glClear(GLES20.GL_COLOR_BUFFER_BIT);
             GLES20.glBindTexture(GLES20.GL_TEXTURE_2D, textureId);
 
-            setMatrix(translate(GLTools.toGLX(1), 0f,0));
+            setMatrix(translate(GLTools.toGLX(x), GLTools.toGLY(y),0));
             if(matrix!=null){
                 GLES20.glUniformMatrix4fv(hMatrix,1,false,matrix,0);
             }
@@ -213,11 +248,11 @@ GLTools.init(this);
         }
 
         private float[] matrix;
-        public void setMatrix(float[] matrix){
+        private void setMatrix(float[] matrix){
             this.matrix=matrix;
         }
 
-        public float[] translate(float x,float y,float z){
+        private float[] translate(float x,float y,float z){
              float[] mMatrixCurrent=     //原始矩阵
                     {1,0,0,0,
                             0,1,0,0,
